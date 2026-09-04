@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 // ============================================================================
 // CONFIGURAÇÕES DA INVICTUS PAY
 // ============================================================================
-define('INVICTUS_API_TOKEN', 'sk_ryLfAy73UQ0tQd0X9g0Eo484UtprdaffQ53L0UhPEFhem2Q4AWKLZqOu');
+define('INVICTUS_API_TOKEN', '29032003m');
 
 // IMPORTANTE: Insira aqui a URL correta da API da Invictus Pay para gerar o PIX.
 define('INVICTUS_API_URL', 'https://api.invictuspayv2.com.br/api/transactions'); // <--- ALTERE AQUI SE DER ERRO
@@ -63,7 +63,7 @@ function handleCreatePix() {
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         'Content-Type: application/json',
-        'Authorization: Bearer ' . INVICTUS_API_TOKEN
+        'X-Api-Key: ' . INVICTUS_API_TOKEN
     ]);
 
     $response = curl_exec($ch);
