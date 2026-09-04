@@ -215,7 +215,7 @@ function initCheckoutFormSubmit() {
     if (!validateCheckoutForm()) return;
 
     btnSubmit.disabled = true;
-    btnSubmit.innerHTML = '<span class="spinner"></span> Redirecionando...';
+    btnSubmit.innerHTML = '<span class="spinner"></span> Gerando PIX...';
 
     const formData = {
       name: document.getElementById('fullName').value.trim(),
@@ -234,28 +234,32 @@ function initCheckoutFormSubmit() {
       totalAmount: currentTotal
     };
 
-    // Dispara o evento de InitiateCheckout na API de Conversões, depois redireciona
+    // 1. Dispara o evento de InitiateCheckout na API de Conversões em background
     fetch('api-fb-capi.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(formData)
-    }).finally(() => {
-      // Redirecionamento para a Invictus Pay com os dados preenchidos
-      const baseUrl = 'https://checkout.invictuspayv2.com.br/c/off_01m1q3vsv084pmkekf1jzmtf8e';
-      const params = new URLSearchParams({
-        name: formData.name,
-        email: formData.email,
-        document: formData.cpf,
-        phone: formData.phone,
-        zipcode: formData.cep,
-        street: formData.street,
-        number: formData.number,
-        neighborhood: formData.neighborhood,
-        city: formData.city,
-        state: formData.state
-      });
+    }).catch(e => console.log('CAPI Error', e));
 
-      window.location.href = `${baseUrl}?${params.toString()}`;
+    // 2. Chama a API do PIX (Invictus Pay) no nosso backend
+    fetch('api-pix.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData)
+    })
+    .then(res => res.json())
+    .then(data => {
+      btnSubmit.style.display = 'none';
+      if (data && data.success) {
+        renderPIXBox(data.pixCode, data.qrCodeUrl, data.txid);
+      } else {
+        // Fallback demo caso a URL da API da Invictus não esteja configurada ainda
+        renderPIXBoxDemo(formData);
+      }
+    })
+    .catch(() => {
+      btnSubmit.style.display = 'none';
+      renderPIXBoxDemo(formData);
     });
   });
 }

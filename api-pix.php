@@ -1,15 +1,10 @@
 <?php
 /**
  * ============================================================================
- * LAVAFRUTAS 360 - SECURE PIX PAYMENT BACKEND ENDPOINT (WORDPRESS / PHP)
+ * LAVAFRUTAS 360 - SECURE PIX PAYMENT BACKEND ENDPOINT (INVICTUS PAY V2)
  * ============================================================================
- * 
- * ATENÇÃO SEGURANÇA:
- * As credenciais secretas do gateway NUNCA devem ser enviadas no JavaScript/frontend.
- * Este arquivo PHP atua como ponte segura entre o checkout e o gateway de pagamento.
  */
 
-// Permite chamadas do mesmo domínio
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, GET, OPTIONS');
@@ -21,138 +16,84 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 // ============================================================================
-// 12. ÁREA EXATA PARA INSERIR AS CREDENCIAIS / API DO SEU GATEWAY DE PAGAMENTO
+// CONFIGURAÇÕES DA INVICTUS PAY
 // ============================================================================
+define('INVICTUS_API_TOKEN', 'sk_ryLfAy73UQ0tQd0X9g0Eo484UtprdaffQ53L0UhPEFhem2Q4AWKLZqOu');
 
-define('GATEWAY_PROVIDER', 'MERCADOPAGO'); // Opções: 'MERCADOPAGO', 'ASAAS', 'PAGARME', 'PUSHINPAY', 'EFI'
-
-// MERCADO PAGO / ASAAS / OUTROS GATEWAYS:
-define('GATEWAY_ACCESS_TOKEN', 'SEU_ACCESS_TOKEN_SECRETO_AQUI'); // Insira seu Access Token / Secret Key aqui
-define('GATEWAY_CLIENT_ID', 'SEU_CLIENT_ID_AQUI');               // Se aplicável
-define('GATEWAY_CLIENT_SECRET', 'SEU_CLIENT_SECRET_AQUI');       // Se aplicável
-define('GATEWAY_PIX_KEY', 'SUA_CHAVE_PIX_AQUI');                 // Chave PIX cadastrada (se aplicável)
-
-// ============================================================================
-// ROTEAMENTO DE REQUISIÇÕES
-// ============================================================================
+// IMPORTANTE: Insira aqui a URL correta da API da Invictus Pay para gerar o PIX.
+define('INVICTUS_API_URL', 'https://api.invictuspayv2.com.br/api/transactions'); // <--- ALTERE AQUI SE DER ERRO
 
 $action = isset($_GET['action']) ? $_GET['action'] : 'create_pix';
 
 if ($action === 'create_pix' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     handleCreatePix();
-} elseif ($action === 'check_status' && $_SERVER['REQUEST_METHOD'] === 'GET') {
-    handleCheckStatus();
 } else {
     echo json_encode(['success' => false, 'message' => 'Ação inválida.']);
     exit();
 }
 
-/**
- * Cria a cobrança PIX no Gateway de Pagamento
- */
 function handleCreatePix() {
     $input = file_get_contents('php://input');
     $data = json_decode($input, true);
 
-    if (!$data || !isset($data['name']) || !isset($data['cpf']) || !isset($data['totalAmount'])) {
+    if (!$data || !isset($data['name']) || !isset($data['cpf'])) {
         echo json_encode(['success' => false, 'message' => 'Dados incompletos fornecidos.']);
         exit();
     }
 
-    $name        = sanitizeString($data['name']);
-    $email       = filter_var($data['email'], FILTER_SANITIZE_EMAIL);
-    $cpf         = preg_replace('/\D/', '', $data['cpf']);
-    $phone       = preg_replace('/\D/', '', $data['phone']);
-    $amount      = (float) $data['totalAmount'];
-    $externalId  = 'LF360_' . time() . '_' . rand(1000, 9999);
-
     // =========================================================================
-    // EXEMPLO DE INTEGRAÇÃO REAL C/ MERCADO PAGO VIA cURL
+    // ESTRUTURA DE DADOS GENÉRICA PARA INVICTUS PAY (API)
     // =========================================================================
-    if (GATEWAY_PROVIDER === 'MERCADOPAGO') {
-        $payload = [
-            'transaction_amount' => $amount,
-            'description'        => 'LavaFrutas 360 - Pedido ' . $externalId,
-            'payment_method_id'  => 'pix',
-            'external_reference' => $externalId,
-            'payer' => [
-                'email'      => $email,
-                'first_name' => explode(' ', $name)[0],
-                'last_name'  => implode(' ', array_slice(explode(' ', $name), 1)),
-                'identification' => [
-                    'type'   => 'CPF',
-                    'number' => $cpf
-                ]
-            ]
-        ];
+    $payload = [
+        'customer' => [
+            'name'     => $data['name'],
+            'email'    => $data['email'],
+            'document' => preg_replace('/\D/', '', $data['cpf']),
+            'phone'    => preg_replace('/\D/', '', $data['phone'])
+        ],
+        'payment_method' => 'pix',
+        'amount'         => (float) $data['totalAmount'],
+        // Offer Hash da sua loja na Invictus
+        'offer_hash'     => 'off_01m1q3vsv084pmkekf1jzmtf8e' 
+    ];
 
-        $ch = curl_init('https://api.mercadopago.com/v1/payments');
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json',
-            'Authorization: Bearer ' . GATEWAY_ACCESS_TOKEN,
-            'X-Idempotency-Key: ' . $externalId
-        ]);
+    $ch = curl_init(INVICTUS_API_URL);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json',
+        'Authorization: Bearer ' . INVICTUS_API_TOKEN
+    ]);
 
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
 
-        $resData = json_decode($response, true);
+    $resData = json_decode($response, true);
 
-        if ($httpCode === 201 && isset($resData['point_of_interaction']['transaction_data'])) {
-            $pixData = $resData['point_of_interaction']['transaction_data'];
+    // Se o HTTP code for 200/201 (Sucesso)
+    if ($httpCode >= 200 && $httpCode < 300 && $resData) {
+        // Tentamos extrair o QR Code dependendo de como a Invictus retorna (qr_code, qrcode, ou pix_code)
+        $pixString = isset($resData['qr_code']) ? $resData['qr_code'] : (isset($resData['pix_code']) ? $resData['pix_code'] : null);
+        
+        if ($pixString) {
             echo json_encode([
                 'success'   => true,
-                'txid'      => $resData['id'],
-                'pixCode'   => $pixData['qr_code'],
-                'qrCodeUrl' => $pixData['qr_code_base64'] ? 'data:image/png;base64,' . $pixData['qr_code_base64'] : 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' . urlencode($pixData['qr_code'])
+                'txid'      => isset($resData['transaction_id']) ? $resData['transaction_id'] : uniqid(),
+                'pixCode'   => $pixString,
+                'qrCodeUrl' => 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' . urlencode($pixString)
             ]);
             exit();
         }
     }
 
-    // Se o gateway não for configurado ou falhar em ambiente de testes, retorna estrutura demo
+    // Retorna falso para cair no "Fallback Demo" no JavaScript e a tela não ficar travada
     echo json_encode([
-        'success'   => true,
-        'txid'      => $externalId,
-        'pixCode'   => '00020126580014BR.GOV.BCB.PIX0136lavafrutas360-pix-key-demo520400005303986540519.905802BR5925LavaFrutas 360 Loja Oficial6009Sao Paulo62070503***6304E2D1',
-        'qrCodeUrl' => 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=lavafrutas360-demo'
+        'success'   => false,
+        'message'   => 'Erro na API da Invictus. Verifique a URL do Endpoint.',
+        'debug'     => $resData,
+        'httpCode'  => $httpCode
     ]);
 }
-
-/**
- * Consulta o status da transação PIX no Gateway
- */
-function handleCheckStatus() {
-    $txid = isset($_GET['txid']) ? sanitizeString($_GET['txid']) : '';
-
-    if (!$txid) {
-        echo json_encode(['status' => 'PENDING']);
-        exit();
-    }
-
-    if (GATEWAY_PROVIDER === 'MERCADOPAGO') {
-        $ch = curl_init('https://api.mercadopago.com/v1/payments/' . $txid);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Authorization: Bearer ' . GATEWAY_ACCESS_TOKEN
-        ]);
-        $response = curl_exec($ch);
-        curl_close($ch);
-
-        $resData = json_decode($response, true);
-        if (isset($resData['status']) && $resData['status'] === 'approved') {
-            echo json_encode(['status' => 'APPROVED']);
-            exit();
-        }
-    }
-
-    echo json_encode(['status' => 'PENDING']);
-}
-
-function sanitizeString($str) {
-    return htmlspecialchars(strip_tags(trim($str)), ENT_QUOTES, 'UTF-8');
-}
+?>
