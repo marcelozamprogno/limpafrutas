@@ -215,7 +215,7 @@ function initCheckoutFormSubmit() {
     if (!validateCheckoutForm()) return;
 
     btnSubmit.disabled = true;
-    btnSubmit.innerHTML = '<span class="spinner"></span> Gerando PIX...';
+    btnSubmit.innerHTML = '<span class="spinner"></span> Redirecionando...';
 
     const formData = {
       name: document.getElementById('fullName').value.trim(),
@@ -234,26 +234,22 @@ function initCheckoutFormSubmit() {
       totalAmount: currentTotal
     };
 
-    // Send request to secure WordPress / PHP PIX backend endpoint
-    fetch('api-pix.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData)
-    })
-    .then(res => res.json())
-    .then(data => {
-      btnSubmit.style.display = 'none';
-      if (data && data.success) {
-        renderPIXBox(data.pixCode, data.qrCodeUrl, data.txid);
-      } else {
-        // Fallback for static demonstration if PHP backend server isn't active
-        renderPIXBoxDemo(formData);
-      }
-    })
-    .catch(() => {
-      btnSubmit.style.display = 'none';
-      renderPIXBoxDemo(formData);
+    // Redirecionamento para a Invictus Pay com os dados preenchidos
+    const baseUrl = 'https://checkout.invictuspayv2.com.br/c/off_01m1q3vsv084pmkekf1jzmtf8e';
+    const params = new URLSearchParams({
+      name: formData.name,
+      email: formData.email,
+      document: formData.cpf,
+      phone: formData.phone,
+      zipcode: formData.cep,
+      street: formData.street,
+      number: formData.number,
+      neighborhood: formData.neighborhood,
+      city: formData.city,
+      state: formData.state
     });
+
+    window.location.href = `${baseUrl}?${params.toString()}`;
   });
 }
 
