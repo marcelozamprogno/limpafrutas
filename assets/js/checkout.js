@@ -234,22 +234,29 @@ function initCheckoutFormSubmit() {
       totalAmount: currentTotal
     };
 
-    // Redirecionamento para a Invictus Pay com os dados preenchidos
-    const baseUrl = 'https://checkout.invictuspayv2.com.br/c/off_01m1q3vsv084pmkekf1jzmtf8e';
-    const params = new URLSearchParams({
-      name: formData.name,
-      email: formData.email,
-      document: formData.cpf,
-      phone: formData.phone,
-      zipcode: formData.cep,
-      street: formData.street,
-      number: formData.number,
-      neighborhood: formData.neighborhood,
-      city: formData.city,
-      state: formData.state
-    });
+    // Dispara o evento de InitiateCheckout na API de Conversões, depois redireciona
+    fetch('api-fb-capi.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData)
+    }).finally(() => {
+      // Redirecionamento para a Invictus Pay com os dados preenchidos
+      const baseUrl = 'https://checkout.invictuspayv2.com.br/c/off_01m1q3vsv084pmkekf1jzmtf8e';
+      const params = new URLSearchParams({
+        name: formData.name,
+        email: formData.email,
+        document: formData.cpf,
+        phone: formData.phone,
+        zipcode: formData.cep,
+        street: formData.street,
+        number: formData.number,
+        neighborhood: formData.neighborhood,
+        city: formData.city,
+        state: formData.state
+      });
 
-    window.location.href = `${baseUrl}?${params.toString()}`;
+      window.location.href = `${baseUrl}?${params.toString()}`;
+    });
   });
 }
 
